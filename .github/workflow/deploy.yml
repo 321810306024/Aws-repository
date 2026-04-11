@@ -16,9 +16,9 @@ jobs:
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AKIA4N7K }}
+          aws-secret-access-key: ${{ secrets.nyffUM/vo7Ksn87+zURMBYQv1aCOQWYGZ5OKSsiE }}
+          aws-region: ${{ secrets.US East (N. Virginia) us-east-1 }}
 
       - name: Deploy to S3
         run: aws s3 sync . s3://${{ secrets.S3_BUCKET }} --delete
