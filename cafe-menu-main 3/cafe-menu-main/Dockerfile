@@ -4,6 +4,7 @@ LABEL org.opencontainers.image.title="Cafe Menu Frontend"
 LABEL org.opencontainers.image.description="Frontend-only CI/CD assessment application"
 
 COPY . /usr/share/nginx/html/
+COPY default.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
