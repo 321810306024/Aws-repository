@@ -1,0 +1,23 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jenkins-cicd-demo:latest
+    container_name: jenkins-cicd-demo
+    ports:
+      - "8082:80"
+    environment:
+      APP_ENV: production
+    volumes:
+      - nginx_logs:/var/log/nginx
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  nginx_logs:
