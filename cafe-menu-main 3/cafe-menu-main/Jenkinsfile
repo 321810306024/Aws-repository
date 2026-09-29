@@ -9,20 +9,24 @@ pipeline {
         HOST_PORT = '8082'
     }
 
-    stages {
+   stage('Download Source') {
+    steps {
+        bat '''
+            if exist "%WORKSPACE%\\source.zip" del /f /q "%WORKSPACE%\\source.zip"
+            if exist "%WORKSPACE%\\Aws-repository-main" rmdir /s /q "%WORKSPACE%\\Aws-repository-main"
 
-        stage('Download Source') {
-            steps {
-                bat '''
-                    if exist "%WORKSPACE%\\source.zip" del /f /q "%WORKSPACE%\\source.zip"
-                    if exist "%WORKSPACE%\\Aws-repository-main" rmdir /s /q "%WORKSPACE%\\Aws-repository-main"
+            powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+            "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://github.com/321810306024/Aws-repository/archive/refs/heads/main.zip' -OutFile '%WORKSPACE%\\source.zip' -TimeoutSec 300"
 
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '%REPO_ZIP%' -OutFile '%WORKSPACE%\\source.zip'"
+            if not exist "%WORKSPACE%\\source.zip" exit /b 1
 
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '%WORKSPACE%\\source.zip' -DestinationPath '%WORKSPACE%' -Force"
-                '''
-            }
-        }
+            powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+            "Expand-Archive -Path '%WORKSPACE%\\source.zip' -DestinationPath '%WORKSPACE%' -Force"
+
+            if not exist "%WORKSPACE%\\Aws-repository-main" exit /b 1
+        '''
+    }
+}
 
         stage('Validate Project') {
             steps {
