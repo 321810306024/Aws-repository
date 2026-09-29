@@ -1,0 +1,132 @@
+pipeline {
+    agent any
+
+    environment {
+        REPO_ZIP = 'https://github.com/321810306024/Aws-repository/archive/refs/heads/main.zip'
+        PROJECT_DIR = 'Aws-repository-main\\cafe-menu-main 3\\cafe-menu-main'
+        IMAGE_NAME = 'jenkins-cicd-demo'
+        CONTAINER_NAME = 'jenkins-cicd-demo'
+        HOST_PORT = '8082'
+    }
+
+    stages {
+
+        stage('Download Source') {
+            steps {
+                bat '''
+                    if exist "%WORKSPACE%\\source.zip" del /f /q "%WORKSPACE%\\source.zip"
+                    if exist "%WORKSPACE%\\Aws-repository-main" rmdir /s /q "%WORKSPACE%\\Aws-repository-main"
+
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '%REPO_ZIP%' -OutFile '%WORKSPACE%\\source.zip'"
+
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '%WORKSPACE%\\source.zip' -DestinationPath '%WORKSPACE%' -Force"
+                '''
+            }
+        }
+
+        stage('Validate Project') {
+            steps {
+                bat '''
+                    cd /d "%WORKSPACE%\\%PROJECT_DIR%"
+
+                    if not exist Dockerfile exit /b 1
+                    if not exist docker-compose.yml exit /b 1
+                    if not exist default.conf exit /b 1
+                    if not exist index.html exit /b 1
+
+                    echo Project validation successful.
+                    docker --version
+                    docker compose version
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                bat '''
+                    cd /d "%WORKSPACE%\\%PROJECT_DIR%"
+
+                    docker build --pull -t %IMAGE_NAME%:%BUILD_NUMBER% -t %IMAGE_NAME%:latest .
+                '''
+            }
+        }
+
+        stage('Trivy Security Scan') {
+            steps {
+                bat '''
+                    cd /d "%WORKSPACE%\\%PROJECT_DIR%"
+
+                    trivy image --severity HIGH,CRITICAL --ignore-unfixed --format table --output "%WORKSPACE%\\trivy-report.txt" %IMAGE_NAME%:%BUILD_NUMBER%
+
+                    type "%WORKSPACE%\\trivy-report.txt"
+                '''
+            }
+        }
+
+        stage('Deploy with Docker Compose') {
+            steps {
+                bat '''
+                    cd /d "%WORKSPACE%\\%PROJECT_DIR%"
+
+                    docker compose down
+                    docker compose up -d --build
+
+                    docker compose ps
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                bat '''
+                    echo Waiting for container health...
+
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok=$false; for($i=0;$i -lt 12;$i++){ $status=docker inspect -f '{{.State.Health.Status}}' '%CONTAINER_NAME%' 2>$null; Write-Host ('Health status: ' + $status); if($status -eq 'healthy'){ $ok=$true; break }; Start-Sleep -Seconds 5 }; if(-not $ok){ docker compose -f '%WORKSPACE%\\%PROJECT_DIR%\\docker-compose.yml' logs --tail=100; exit 1 }"
+                '''
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                bat '''
+                    curl.exe --fail --silent http://localhost:%HOST_PORT%/ > nul
+                    curl.exe --fail --silent http://localhost:%HOST_PORT%/health
+
+                    echo.
+                    echo Smoke test passed.
+                '''
+            }
+        }
+
+        stage('Archive Trivy Report') {
+            steps {
+                archiveArtifacts artifacts: 'trivy-report.txt', fingerprint: true
+            }
+        }
+
+        stage('Cleanup Old Images') {
+            steps {
+                bat '''
+                    docker image prune -f
+                    docker builder prune -f
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'CI/CD pipeline completed successfully.'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check the failed stage and console output.'
+        }
+
+        always {
+            bat '''
+                docker image ls %IMAGE_NAME% || exit /b 0
+            '''
+        }
+    }
+}
